@@ -15,13 +15,14 @@ OBJ			= ${SRC:%.cpp=${DIR_OBJ}%.o}
 CXX			= c++ 
 DEP			= ${OBJ:%.o=%.d}
 CPPFLAGS	=  -c -I ${DIR_INC} 
+FLAGS	=  -Wall
 RM 			= rm -f
 RMDIR		= rm -rf
 
 all: ${NAME}
 
 ${NAME} : ${OBJ}
-	${CXX} -Wall -Wextra -Werror  $^ -o $@
+	${CXX} $(FLAGS) $^ -o $@
 
 ${OBJ} : ${DIR_OBJ}%.o: ${DIR_SRC}%.cpp
 	mkdir -p ${@D}
