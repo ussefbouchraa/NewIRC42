@@ -59,6 +59,7 @@ public:
   // Public methods for server operations
   void start();
   void stop();
+  void hang(int seconds);
   void acceptNewConnection(int listenerFd);
   void handleClientActivity(int clientFd);
 };

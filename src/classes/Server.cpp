@@ -60,6 +60,26 @@ Server::~Server() {
     std::cout << "Server shutdown, all fds purged.\n";
 }
 
+void    Server::start()
+{
+    //takes care of initializing the server and starting the main loop.
+
+}
+
+
+void    Server::stop()
+{
+    // responsible for cleaning up and exiting.
+
+}
+
+
+void    hang(int    seconds)
+{
+    //hangs the server.
+
+
+}
 // Initializes the command dispatcher
 void Server::initializeCommandDispatcher() {
   _commandDispatcher[JOIN] = &Server::handleJoinCommand;
