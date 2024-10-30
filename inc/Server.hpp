@@ -1,113 +1,56 @@
-/* ************************************************************************** */
-/*                                                                            */
-/*                                                        :::      ::::::::   */
-/*   Server.hpp                                         :+:      :+:    :+:   */
-/*                                                    +:+ +:+         +:+     */
-/*   By: ybouchra <ybouchra@student.42.fr>          +#+  +:+       +#+        */
-/*                                                +#+#+#+#+#+   +#+           */
-/*   Created: 2024/10/12 19:00:42 by ybouchra          #+#    #+#             */
-/*   Updated: 2024/10/21 13:59:53 by ybouchra         ###   ########.fr       */
-/*                                                                            */
-/* ************************************************************************** */
-
 
 
 #ifndef SERVER_HPP
 #define SERVER_HPP
 
 #include <string>
-#include <vector>
 #include <map>
+#include <vector>
 #include <poll.h>
 #include "Client.hpp"
 #include "Channel.hpp"
-#include <string>
-#include <cctype>
-#include <iostream>
-#include <algorithm>
-#include <limits>
-#include <vector>
-#include <map>
-#include <poll.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <cstring>
-#include <cstdlib>
-#include <unistd.h>
-#include "Client.hpp"
-#include "Channel.hpp"
-#include "Message.hpp"
-#include "replies.hpp"
 #include "IRC.hpp"
-#include <fcntl.h>
 
-// class Server
-// {
-//
-// private:
-//     uint16_t                        _port; 
-//     std::string                     _passWord;
-//     std::vector<pollfd>             _fds; 
-//     std::map<int, Client>           _clients;
-//     std::map<std::string, Channel>  _channels; 
-//     
-// public:
-//     Server();
-//     Server(std::string port, std::string password);
-//     Server& operator=(const Server& obj);
-//     Server(const Server& obj);
-//     ~Server();
-//
-//     // void                        startServer(); 
-//     bool                        authenticateUser(int i); 
-//     // void                        handleClientConnection(); 
-//     void                        handleClientMessage(int i); 
-//     
-//     
-//     bool                        checkNickName(std::string nickname);
-//     bool                        checkUserName(std::string username);
-//     bool                        isValidChannelName(std::string &channelName);
-//     bool                        isValidChannelKey(std::string &keys);
-//     void                        createChannel(std::string &channelName, std::string key);
-//     bool                        findChannelName(std::string &channelName);
-//     bool                        is_memberInChannel(std::string &channelName, Client cl);
-//     Client                      *getClientByNickName(std::string nick);
-//     void                        disconnect(Client &cl);
-//     
-//     void                        passCommand(int i);
-//     void                        nickCommand(int i);
-//     void                        userCommand(int i);
-//     void                        joinCommand(int i);
-//     void                        partCommand(int i);
-//     void                        topicCommand(int i);
-//     void                        privmsgCommand(int i);
-//     void                        listCommand(int i);
-//     void                        inviteCommand(int i);
-//     void                        kickCommand(int i);
-//     void                        modeCommand(int i);
-//     void                        applyModes(const std::string &modes, const std::vector<std::string> &argsVec, int clientIdx);
+// enum CommandType {
+//     JOIN,
+//     LIST,
+//     PART,
+//     TOPIC,
+//     PRIVMSG,
+//     INVITE,
+//     KICK,
+//     MODE,
+//     NICK,
+//     PASS,
+//     USER,
+//     PING,
+//     PONG,
+//     QUIT,
+//     UNKNOWN
 // };
 
-
-
-class Server
-{
+class Server {
 private:
-    uint16_t                        _port; 
-    std::string                     _passWord;
-    std::vector<pollfd>             _fds; 
-    std::map<int, Client>           _clients;
-    std::map<std::string, Channel>  _channels; 
-    bool                            _serverRunning;
-    const int                       _maxClients;
+    uint16_t _port;
+    std::string _password;
+    std::vector<pollfd> _fds;
+    std::map<int, Client> _clients;
+    std::map<std::string, Channel> _channels;
+    std::map<commands, void (Server::*)(int)> _commandDispatcher;
 
-    // Helper functions
-    bool setupSocket();
-    bool startListening();
-    void acceptNewClient();
-    void shutdownServer();
+    // Private helper methods for command handling
+    void initializeCommandDispatcher();
+    bool authenticateClient(int clientIndex);
+    void addClient(int fd, const Client &client);
+    void removeClient(int clientIndex);
+    void broadcastToChannel(const std::string &channelName, const std::string &message, const Client &sender);
+    void processIncomingMessage(int clientIndex);
+    void disconnectClient(int clientIndex);
+    bool isNicknameInUse(const std::string &nickname) const;
+    Channel &getOrCreateChannel(const std::string &channelName);
+    void removeChannelIfEmpty(const std::string &channelName);
 
-    // Command Handlers
+    // Command handling methods
     void handleJoinCommand(int clientIndex);
     void handleListCommand(int clientIndex);
     void handlePartCommand(int clientIndex);
@@ -119,23 +62,22 @@ private:
     void handleNickCommand(int clientIndex);
     void handlePassCommand(int clientIndex);
     void handleUserCommand(int clientIndex);
+    void handlePingCommand(int clientIndex);
+    void handlePongCommand(int clientIndex);
+    void handleQuitCommand(int clientIndex);
 
 public:
-    // Constructors, Destructor, and Assignment Operator
-    Server();
-    Server(std::string port, std::string password);
-    Server& operator=(const Server& obj);
-    Server(const Server& obj);
+    Server(uint16_t port, const std::string &password);
+    Server(const Server &other);
+    Server &operator=(const Server &other);
     ~Server();
 
-    // Core Server Functions
-    bool initializeServer();
-    void handleConnections();
-    void processClientMessage(int clientIndex);
-    bool isUserAuthenticated(int clientIndex);
-    void executeClientCommand(int clientIndex);
-    void handleUnauthenticatedClient(int clientIndex);
+    // Public methods for server operations
+    void start();
+    void stop();
+    void acceptNewConnection(int listenerFd);
+    void handleClientActivity(int clientFd);
 };
 
+#endif // SERVER_HPP
 
-#endif
