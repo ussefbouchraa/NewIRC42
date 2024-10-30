@@ -49,6 +49,7 @@ private:
   void handlePongCommand(int clientIndex);
   void handleQuitCommand(int clientIndex);
 
+
 public:
   Server(std::string port, const std::string &password);
   Server(const Server &other);

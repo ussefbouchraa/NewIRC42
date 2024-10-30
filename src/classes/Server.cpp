@@ -26,8 +26,10 @@ Server::Server(std::string port, const std::string &password)
     : _port(port), _password(password) {
   // handle string port
   initializeCommandDispatcher();
-  std::cout << "Server initialized on port " << port
-            << " with provided password.\n";
+  if (env.getState == "Info") {
+    std::cout << "Server initialized on port " << port
+              << " with provided password.\n";
+  }
 }
 
 Server::Server(const Server &other)
@@ -54,7 +56,8 @@ Server::~Server() {
        it != _clients.end(); ++it) {
     close(it->second.getClientFdSocket());
   }
-  std::cout << "Server shutdown, all clients disconnected.\n";
+  if (env.state == INFO)
+    std::cout << "Server shutdown, all fds purged.\n";
 }
 
 // Initializes the command dispatcher
@@ -81,12 +84,12 @@ bool Server::authenticateClient(int clientIndex) {
     return true;
   }
 
-  commands command = client.getMessage().getCommand();
-  if (command == PASS && client.getMessage().getToken() == _password) {
-    client.setAuthenticate(true);
-    client.sendMsg("Password accepted.");
-    return true;
-  }
+  // commands command = client.getMessage().getCommand();
+  // if (command == PASS && client.getMessage().getToken() == _password) {
+  //   client.setAuthenticate(true);
+  //   client.sendMsg("Password accepted.");
+  //   return true;
+  // }
 
   client.sendMsg("Error: Authentication required. Use PASS command.");
   return false;
@@ -108,7 +111,7 @@ void Server::addClient(int fd, const Client &client) {
 void Server::removeClient(int clientIndex) {
   Client &client = _clients[clientIndex];
   disconnectClient(clientIndex);
-  std::cout << "Client with FD " << client.getFd() << " removed.\n";
+  std::cout << "Client with FD " << client.getClientFdSocket() << " removed.\n";
 }
 
 void Server::broadcastToChannel(const std::string &channelName,
@@ -119,7 +122,7 @@ void Server::broadcastToChannel(const std::string &channelName,
   }
 
   Channel &channel = _channels[channelName];
-  channel.broadcastMessage(sender.getNickName() + ": " + message, sender);
+  channel.broadcastMessage(sender, ": " + message, false);
 }
 
 // Processes incoming messages and dispatches commands
@@ -130,26 +133,26 @@ void Server::processIncomingMessage(int clientIndex) {
     return;
   }
 
-  CommandType command = client.getMessage().getCommand();
-  if (_commandDispatcher.find(command) != _commandDispatcher.end()) {
-    (this->*_commandDispatcher[command])(clientIndex);
-  } else {
-    client.sendMsg("Error: Unknown command.");
-  }
+  // commands command = client.getMessage().getCommand();
+  // if (_commandDispatcher.find(command) != _commandDispatcher.end()) {
+  //   (this->*_commandDispatcher[command])(clientIndex);
+  // } else {
+  //   client.sendMsg("Error: Unknown command.");
+  // }
 }
 
 // Disconnects a client and closes their connection
 void Server::disconnectClient(int clientIndex) {
   Client &client = _clients[clientIndex];
-  close(client.getFd());
+  close(client.getClientFdSocket());
 
   for (std::map<std::string, Channel>::iterator it = _channels.begin();
        it != _channels.end(); ++it) {
-    it->second.removeClient(client);
+    it->second.removeClient(client, 0);
   }
 
   _clients.erase(clientIndex);
-  std::cout << "Client with FD " << client.getFd() << " disconnected.\n";
+  std::cout << "Client with FD " << client.getClientFdSocket() << " disconnected.\n";
 }
 
 // Checks if a nickname is already in use
@@ -164,18 +167,18 @@ bool Server::isNicknameInUse(const std::string &nickname) const {
 }
 
 // Adds a new channel if it doesn't exist
-Channel &Server::getOrCreateChannel(const std::string &channelName) {
+Channel &Server::getOrCreateChannel(const std::string &channelName, std::string key) {
   if (_channels.find(channelName) == _channels.end()) {
-    _channels[channelName] = Channel(channelName);
+    _channels[channelName] = Channel(channelName, key);
   }
   return _channels[channelName];
 }
 
 // Removes a channel if it's empty
 void Server::removeChannelIfEmpty(const std::string &channelName) {
-  std::map<std::string, Channel>::iterator it = _channels.find(channelName);
-  if (it != _channels.end() && it->second.getClientCount() == 0) {
-    _channels.erase(it);
-    std::cout << "Channel " << channelName << " removed (empty).\n";
-  }
+  // std::map<std::string, Channel>::iterator it = _channels.find(channelName);
+  // if (it != _channels.end() && it->second.getClientCount() == 0) {
+  //   _channels.erase(it);
+  //   std::cout << "Channel " << channelName << " removed (empty).\n";
+  // }
 }

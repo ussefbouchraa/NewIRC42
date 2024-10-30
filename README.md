@@ -12,4 +12,6 @@
 - might have to add some client methodes.
 - Code :
     - start and end server methods
+    - implement removeClient, getClientCount and getCommand.
+    - 
 
