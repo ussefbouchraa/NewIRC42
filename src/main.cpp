@@ -34,8 +34,8 @@ int main(int argc, char const *argv[])
 		
 		std::cout << ES_RESET << std::endl;
 			
-		Server test(argv[1], argv[2]);
-		test.startServer();
+		Server core(argv[1], argv[2]);
+        core.start();
 	}
 	
 	

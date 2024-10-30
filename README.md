@@ -7,4 +7,9 @@
 - add logging  and debug capabilities to the server.
 - conf for the serv (big task).
 - helper function god dammit.
+- unit tests :
+    - commands.
+- might have to add some client methodes.
+- Code :
+    - start and end server methods
 
