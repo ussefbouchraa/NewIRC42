@@ -13,6 +13,7 @@
 
 
 #include "../../inc/Client.hpp"
+#include <ctime>
 
 Client::Client()
 {

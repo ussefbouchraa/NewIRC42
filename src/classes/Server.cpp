@@ -1,204 +1,284 @@
-/* ************************************************************************** */
-/*                                                                            */
-/*                                                        :::      ::::::::   */
-/*   Server.cpp                                         :+:      :+:    :+:   */
-/*                                                    +:+ +:+         +:+     */
-/*   By: ybouchra <ybouchra@student.42.fr>          +#+  +:+       +#+        */
-/*                                                +#+#+#+#+#+   +#+           */
-/*   Created: 2024/10/12 19:02:14 by ybouchra          #+#    #+#             */
-/*   Updated: 2024/10/21 13:58:57 by ybouchra         ###   ########.fr       */
-/*                                                                            */
-/* ************************************************************************** */
-
 #include "../../inc/Server.hpp"
-#include <arpa/inet.h> // For sockaddr_in and htons
+
+#include "Server.hpp"
+#include "Client.hpp"
+#include "Channel.hpp"
+#include "Message.hpp"
+#include "replies.hpp"
+#include <iostream>
 #include <cstring>
-#include <iostream>
-#include <stdexcept>
-#include <unistd.h> // For close()
+#include <unistd.h>
+#include <arpa/inet.h>
+#include <poll.h>
 
-#include "../../inc/Server.hpp"
-#include <iostream>
-#include <sstream)>
-#include <stdexcept>
-
-Server::Server(std::string port, const std::string &password)
-    : _port(port), _password(password) {
-  // handle string port
-  initializeCommandDispatcher();
-  if (env.getState == "Info") {
-    std::cout << "Server initialized on port " << port
-              << " with provided password.\n";
-  }
-}
-
-Server::Server(const Server &other)
-    : _port(other._port), _password(other._password), _clients(other._clients),
-      _channels(other._channels) {
-  initializeCommandDispatcher();
-}
-
-// Assignment operator
-Server &Server::operator=(const Server &other) {
-  if (this != &other) {
-    _port = other._port;
-    _password = other._password;
-    _clients = other._clients;
-    _channels = other._channels;
-    initializeCommandDispatcher();
-  }
-  return *this;
-}
-
-// Destructor
-Server::~Server() {
-  for (std::map<int, Client>::iterator it = _clients.begin();
-       it != _clients.end(); ++it) {
-    close(it->second.getClientFdSocket());
-  }
-  if (env.state == INFO)
-    std::cout << "Server shutdown, all fds purged.\n";
-}
-
-void    Server::start()
+Server::Server(int port, const std::string &password)
+    : _port(port), _passWord(password), _running(false)
 {
-    //takes care of initializing the server and starting the main loop.
-
 }
 
-
-void    Server::stop()
+Server::~Server()
 {
-    // responsible for cleaning up and exiting.
-
+    // Clean up resources
 }
 
-
-void    hang(int    seconds)
+void Server::start()
 {
-    //hangs the server.
+    int server_fd = createSocket();
+    bindSocket(server_fd);
+    listenOnSocket(server_fd);
 
+    _running = true;
+    std::cout << "Server started on port " << _port << std::endl;
 
-}
-// Initializes the command dispatcher
-void Server::initializeCommandDispatcher() {
-  _commandDispatcher[JOIN] = &Server::handleJoinCommand;
-  _commandDispatcher[LIST] = &Server::handleListCommand;
-  _commandDispatcher[PART] = &Server::handlePartCommand;
-  _commandDispatcher[TOPIC] = &Server::handleTopicCommand;
-  _commandDispatcher[PRIVMSG] = &Server::handlePrivmsgCommand;
-  _commandDispatcher[INVITE] = &Server::handleInviteCommand;
-  _commandDispatcher[KICK] = &Server::handleKickCommand;
-  _commandDispatcher[MODE] = &Server::handleModeCommand;
-  _commandDispatcher[NICK] = &Server::handleNickCommand;
-  _commandDispatcher[PASS] = &Server::handlePassCommand;
-  _commandDispatcher[USER] = &Server::handleUserCommand;
-  _commandDispatcher[PING] = &Server::handlePingCommand;
-  _commandDispatcher[PONG] = &Server::handlePongCommand;
-  _commandDispatcher[QUIT] = &Server::handleQuitCommand;
-}
+    struct pollfd fds[200];
+    int nfds = 1;
+    fds[0].fd = server_fd;
+    fds[0].events = POLLIN;
 
-bool Server::authenticateClient(int clientIndex) {
-  Client &client = _clients[clientIndex];
-  if (client.getAuthenticate()) {
-    return true;
-  }
+    while (_running)
+    {
+        int poll_count = poll(fds, nfds, -1);
+        if (poll_count < 0)
+        {
+            perror("poll failed");
+            exit(EXIT_FAILURE);
+        }
 
-  // commands command = client.getMessage().getCommand();
-  // if (command == PASS && client.getMessage().getToken() == _password) {
-  //   client.setAuthenticate(true);
-  //   client.sendMsg("Password accepted.");
-  //   return true;
-  // }
+        for (int i = 0; i < nfds; i++)
+        {
+            if (fds[i].revents & POLLIN)
+            {
+                if (fds[i].fd == server_fd)
+                {
+                    int new_socket = acceptConnection(server_fd);
+                    fds[nfds].fd = new_socket;
+                    fds[nfds].events = POLLIN;
+                    nfds++;
 
-  client.sendMsg("Error: Authentication required. Use PASS command.");
-  return false;
-}
-
-// Adds a client to the server
-void Server::addClient(int fd, const Client &client) {
-  if (_clients.find(fd) != _clients.end()) {
-    throw std::runtime_error("Client with this FD already exists.");
-  }
-
-  _clients[fd] = client;
-  pollfd newPollFd = {fd, POLLIN, 0};
-  _fds.push_back(newPollFd);
-  std::cout << "Client added with FD: " << fd << "\n";
-}
-
-// Removes a client from the server
-void Server::removeClient(int clientIndex) {
-  Client &client = _clients[clientIndex];
-  disconnectClient(clientIndex);
-  std::cout << "Client with FD " << client.getClientFdSocket() << " removed.\n";
-}
-
-void Server::broadcastToChannel(const std::string &channelName,
-                                const std::string &message,
-                                const Client &sender) {
-  if (_channels.find(channelName) == _channels.end()) {
-    throw std::runtime_error("Channel does not exist.");
-  }
-
-  Channel &channel = _channels[channelName];
-  channel.broadcastMessage(sender, ": " + message, false);
-}
-
-// Processes incoming messages and dispatches commands
-void Server::processIncomingMessage(int clientIndex) {
-  Client &client = _clients[clientIndex];
-
-  if (!authenticateClient(clientIndex)) {
-    return;
-  }
-
-  // commands command = client.getMessage().getCommand();
-  // if (_commandDispatcher.find(command) != _commandDispatcher.end()) {
-  //   (this->*_commandDispatcher[command])(clientIndex);
-  // } else {
-  //   client.sendMsg("Error: Unknown command.");
-  // }
-}
-
-// Disconnects a client and closes their connection
-void Server::disconnectClient(int clientIndex) {
-  Client &client = _clients[clientIndex];
-  close(client.getClientFdSocket());
-
-  for (std::map<std::string, Channel>::iterator it = _channels.begin();
-       it != _channels.end(); ++it) {
-    it->second.removeClient(client, 0);
-  }
-
-  _clients.erase(clientIndex);
-  std::cout << "Client with FD " << client.getClientFdSocket() << " disconnected.\n";
-}
-
-// Checks if a nickname is already in use
-bool Server::isNicknameInUse(const std::string &nickname) const {
-  for (std::map<int, Client>::const_iterator it = _clients.begin();
-       it != _clients.end(); ++it) {
-    if (it->second.getNickName() == nickname) {
-      return true;
+                    handleNewConnection(new_socket);
+                }
+                else
+                {
+                    handleClientMessage(fds[i].fd);
+                }
+            }
+        }
     }
-  }
-  return false;
 }
 
-// Adds a new channel if it doesn't exist
-Channel &Server::getOrCreateChannel(const std::string &channelName, std::string key) {
-  if (_channels.find(channelName) == _channels.end()) {
-    _channels[channelName] = Channel(channelName, key);
-  }
-  return _channels[channelName];
+int Server::createSocket()
+{
+    int server_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (server_fd == 0)
+    {
+        perror("socket failed");
+        exit(EXIT_FAILURE);
+    }
+
+    int opt = 1;
+    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof(opt)))
+    {
+        perror("setsockopt");
+        exit(EXIT_FAILURE);
+    }
+
+    return server_fd;
 }
 
-// Removes a channel if it's empty
-void Server::removeChannelIfEmpty(const std::string &channelName) {
-  // std::map<std::string, Channel>::iterator it = _channels.find(channelName);
-  // if (it != _channels.end() && it->second.getClientCount() == 0) {
-  //   _channels.erase(it);
-  //   std::cout << "Channel " << channelName << " removed (empty).\n";
-  // }
+void Server::bindSocket(int server_fd)
+{
+    struct sockaddr_in address;
+    address.sin_family = AF_INET;
+    address.sin_addr.s_addr = INADDR_ANY;
+    address.sin_port = htons(_port);
+
+    if (bind(server_fd, (struct sockaddr *)&address, sizeof(address)) < 0)
+    {
+        perror("bind failed");
+        exit(EXIT_FAILURE);
+    }
+}
+
+void Server::listenOnSocket(int server_fd)
+{
+    if (listen(server_fd, 3) < 0)
+    {
+        perror("listen");
+        exit(EXIT_FAILURE);
+    }
+}
+
+int Server::acceptConnection(int server_fd)
+{
+    struct sockaddr_in address;
+    int addrlen = sizeof(address);
+    int new_socket = accept(server_fd, (struct sockaddr *)&address, (socklen_t *)&addrlen);
+    if (new_socket < 0)
+    {
+        perror("accept");
+        exit(EXIT_FAILURE);
+    }
+
+    return new_socket;
+}
+
+void Server::handleNewConnection(int new_socket)
+{
+    // Add new client to the clients map
+    _clients[new_socket] = Client(new_socket, false);
+    std::cout << "New connection established" << std::endl;
+}
+
+void Server::stop()
+{
+    _running = false;
+    std::cout << "Server stopped." << std::endl;
+}
+
+void Server::handleClientMessage(Client &client, const std::string &message)
+{
+    // Code to handle messages from clients
+}
+
+void Server::sendMessageToClient(Client &client, const std::string &message)
+{
+    client.sendMsg(message);
+}
+
+void Server::broadcastMessage(const std::string &message)
+{
+    for (std::map<int, Client>::iterator it = _clients.begin(); it != _clients.end(); ++it)
+    {
+        sendMessageToClient(it->second, message);
+    }
+}
+
+Client *Server::getClientByNickName(const std::string &nick)
+{
+    for (std::map<int, Client>::iterator it = this->_clients.begin(); it != this->_clients.end(); it++)
+    {
+        if (it->second.getNickName() == nick)
+            return &it->second;
+    }
+    return NULL;
+}
+
+bool Server::checkUserName(const std::string &username)
+{
+    if (username.empty())
+        return false;
+    for (size_t i = 0; i < username.size(); ++i)
+    {
+        char c = username[i];
+        if (!std::isalnum(c) && c != '_')
+            return false;
+    }
+    return true;
+}
+
+bool Server::checkNickName(std::string nickname)
+{
+    char c = nickname.at(0);
+    if (!(isalpha(c)))
+        return false;
+    return true;
+}
+
+bool Server::findChannelName(std::string &channelName)
+{
+    if (this->_channels.empty() || channelName.empty())
+        return (false);
+    std::map<std::string, Channel>::iterator it = this->_channels.find(channelName);  
+    return (it != this->_channels.end() );
+}
+
+bool Server::is_memberInChannel(std::string &channelName, Client cl)
+{
+    std::map<std::string, Client*>::iterator it = this->_channels[channelName]._clients.find(cl.getNickName());
+    if (it != _channels[channelName]._clients.end() && it->first == cl.getNickName())
+        return (true);
+    return (false);
+}
+
+bool Server::isValidChannelName(std::string &channelName)
+{
+    if (channelName.empty())
+        return (false);
+    if (channelName.at(0) != '#')
+        return (false);
+    if (!(channelName.size() >= 2 && channelName.size() <= CHANNELNAMELEN))
+        return (false);
+    size_t pos = channelName.find_first_of(",:?*!@ ");
+    if (pos != std::string::npos) {
+        return (false);
+    }
+    return (true);
+}
+
+void Server::createChannel(std::string &channelName, std::string key)
+{
+    this->_channels.insert(std::make_pair(channelName, Channel(channelName, key)));
+    if (!key.empty())
+        this->_channels[channelName]._mode.requiredKey = true;
+}
+
+bool Server::authenticateUser(int i)
+{
+    if (this->_clients[i].getAuthenticate())
+        return true;
+    else if (this->_clients[i].getMessage().getCommand() == PASS)
+        this->passCommand(i);
+    else if (this->_clients[i].getMessage().getCommand() == NICK)
+        this->nickCommand(i);
+    else if (!this->_clients[i].getNickName().empty() && this->_clients[i].getMessage().getCommand() == USER)
+        this->userCommand(i);
+    else
+        this->_clients[i].sendMsg(ERR_NOTREGISTERED("*"));
+
+    return false;
+}
+
+void Server::handleClientMessage(int i)
+{
+    if (this->authenticateUser(i))
+    {
+        switch (this->_clients[i].getMessage().getCommand())
+        {
+        case (JOIN):
+            joinCommand(i);
+            break;
+        case (LIST):
+            listCommand(i);
+            break;
+        case (PART):
+            partCommand(i);
+            break;
+        case (TOPIC):
+            topicCommand(i);
+            break;
+        case (PRIVMSG):
+            privmsgCommand(i);
+            break;
+        case (INVITE):
+            inviteCommand(i);
+            break;
+        case (KICK):
+            kickCommand(i);
+            break;
+        case (MODE):
+            modeCommand(i);
+            break;
+        case (NICK):
+            nickCommand(i);
+            break;
+        case PASS:
+        case USER:
+        case PING:
+        case PONG:
+        case QUIT:
+            break;
+        default:
+            this->_clients[i].sendMsg(ERR_UNKNOWNCOMMAND(_clients[i].getNickName()));
+        }
+    }
 }

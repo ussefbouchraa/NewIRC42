@@ -34,8 +34,9 @@ int main(int argc, char const *argv[])
 		
 		std::cout << ES_RESET << std::endl;
 			
-		Server core(argv[1], argv[2]);
-        core.start();
+		int port = std::stoi(argv[1]);
+		Server test(port, argv[2]);
+		test.start();
 	}
 	
 	

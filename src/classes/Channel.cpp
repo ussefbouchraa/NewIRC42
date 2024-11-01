@@ -12,6 +12,8 @@
 
 
 #include "../../inc/Channel.hpp"
+#include <ctime>
+#include <sstream>
 
 Channel::Channel()
 {
