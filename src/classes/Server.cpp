@@ -27,7 +27,6 @@ void Server::start()
     bindSocket(server_fd);
     listenOnSocket(server_fd);
 
-    _running = true;
     std::cout << "Server started on port " << _port << std::endl;
 
     struct pollfd fds[200];
@@ -35,7 +34,7 @@ void Server::start()
     fds[0].fd = server_fd;
     fds[0].events = POLLIN;
 
-    while (_running)
+    while (true)
     {
         int poll_count = poll(fds, nfds, -1);
         if (poll_count < 0)
@@ -135,10 +134,6 @@ void Server::stop()
     std::cout << "Server stopped." << std::endl;
 }
 
-void Server::handleClientMessage(Client &client, const std::string &message)
-{
-    // Code to handle messages from clients
-}
 
 void Server::sendMessageToClient(Client &client, const std::string &message)
 {
@@ -238,47 +233,79 @@ bool Server::authenticateUser(int i)
     return false;
 }
 
-void Server::handleClientMessage(int i)
+void	printClientDebugPanel(Client &client)
 {
-    if (this->authenticateUser(i))
+	std::cout << "---------------Client debug panel---------------" << std::endl;
+	std::cout << "Nick: " << client.getNickName() << std::endl;
+	std::cout << "User: " << client.getUserName() << std::endl;
+	std::cout << "IP: " << client.getIP() << std::endl;
+	std::cout << "Pass: " << client.getPass() << std::endl;
+	std::cout << "Channels: " << client.getnbrChannels() << std::endl;
+	std::cout << "------------------------------------------------" << std::endl;
+}
+void Server::handleClientMessage(int client_fd)
+{
+    char buffer[1024] = {0};
+    int valread = read(client_fd, buffer, 1024);
+    if (valread == 0)
     {
-        switch (this->_clients[i].getMessage().getCommand())
+        close(client_fd);
+        // Remove client from the poll array and the clients map
+		_clients.erase(client_fd);
+    }
+    else
+    {
+        std::string message(buffer, valread);
+        Client &client = _clients[client_fd];
+        client.consume_message(message);
+
+        if (client.getMessage().IsReady())
         {
-        case (JOIN):
-            joinCommand(i);
-            break;
-        case (LIST):
-            listCommand(i);
-            break;
-        case (PART):
-            partCommand(i);
-            break;
-        case (TOPIC):
-            topicCommand(i);
-            break;
-        case (PRIVMSG):
-            privmsgCommand(i);
-            break;
-        case (INVITE):
-            inviteCommand(i);
-            break;
-        case (KICK):
-            kickCommand(i);
-            break;
-        case (MODE):
-            modeCommand(i);
-            break;
-        case (NICK):
-            nickCommand(i);
-            break;
-        case PASS:
-        case USER:
-        case PING:
-        case PONG:
-        case QUIT:
-            break;
-        default:
-            this->_clients[i].sendMsg(ERR_UNKNOWNCOMMAND(_clients[i].getNickName()));
+            int command = client.getMessage().getCommand();
+            std::cout << "Dispatching command: " << command << std::endl;
+			printClientDebugPanel(client);
+            switch (command)
+            {
+                case PASS:
+                    passCommand(client_fd);
+                    break;
+                case NICK:
+                    nickCommand(client_fd);
+                    break;
+                case USER:
+                    userCommand(client_fd);
+                    break;
+                case JOIN:
+                    joinCommand(client_fd);
+                    break;
+                case PART:
+                    partCommand(client_fd);
+                    break;
+                case PRIVMSG:
+                    privmsgCommand(client_fd);
+                    break;
+                case MODE:
+                    modeCommand(client_fd);
+                    break;
+                case TOPIC:
+                    topicCommand(client_fd);
+                    break;
+                case LIST:
+                    listCommand(client_fd);
+                    break;
+                case INVITE:
+                    inviteCommand(client_fd);
+                    break;
+                case KICK:
+                    kickCommand(client_fd);
+                    break;
+                // case PING:
+                //     handlePingCommand(client_fd);
+                //     break;
+                default:
+                    client.sendMsg(ERR_UNKNOWNCOMMAND(client.getNickName()));
+                    break;
+            }
         }
     }
 }

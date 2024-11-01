@@ -171,4 +171,6 @@ void Message::parsBuffer()
         this->_command = PONG;
     else
         this->_command = UNKNOWN;
+
+    std::cout << "Parsed command: " << cmd << std::endl;
 }
