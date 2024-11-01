@@ -46,6 +46,7 @@ public:
 
     Message(std::string buffer, int sender);
     Message& operator+(const std::string& str);
+
     void myAppend(Message msg);
     void clearBuffer();
     bool IsReady();
