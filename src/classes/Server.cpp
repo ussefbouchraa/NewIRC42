@@ -206,6 +206,8 @@ bool Server::authenticateUser(int i) {
   return false;
 }
 
+// void listClientChannels()
+
 void printClientDebugPanel(Client &client) {
   std::cout << "---------------Client debug panel---------------" << std::endl;
   std::cout << "Nick: " << client.getNickName() << std::endl;
